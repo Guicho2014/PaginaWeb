@@ -1,0 +1,20 @@
+# Logs
+*.log
+logs/
+
+# Entorno
+.env
+.env.local
+
+# Caché
+.cache/
+*.cache
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp

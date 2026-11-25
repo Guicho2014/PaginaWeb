@@ -1,0 +1,102 @@
+/* =========================================
+   1. RESET Y FUENTES BÁSICAS
+   ========================================= */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+}
+
+body {
+    background-color: #ffffff; /* Fondo blanco */
+    color: #000000;            /* Texto negro */
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;         /* Para que el footer se pegue abajo */
+}
+
+/* =========================================
+   2. ENCABEZADO PÚBLICO
+   ========================================= */
+.public-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 30px;
+    border-bottom: 1px solid #000000; /* Línea negra simple */
+}
+
+.public-header .logo {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+/* =========================================
+   3. BOTONES (Estilo wireframe)
+   ========================================= */
+.btn-login, .btn-main {
+    text-decoration: none;
+    color: #000000;
+    border: 1px solid #000000;
+    padding: 10px 20px;
+    font-weight: bold;
+    display: inline-block;
+}
+
+.btn-login:hover, .btn-main:hover {
+    background-color: #eeeeee; /* Gris muy claro al pasar el mouse */
+}
+
+/* =========================================
+   4. CONTENIDO PRINCIPAL (Centrado)
+   ========================================= */
+.public-main {
+    flex: 1; /* Ocupa todo el espacio restante */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.public-main h1 {
+    font-size: 32px;
+    margin-bottom: 15px;
+}
+
+.public-main p {
+    font-size: 16px;
+    max-width: 500px;
+    margin-bottom: 30px;
+}
+
+.public-actions {
+    margin-top: 20px;
+}
+
+/* =========================================
+   5. PIE DE PÁGINA
+   ========================================= */
+.public-footer {
+    text-align: center;
+    padding: 15px;
+    border-top: 1px solid #000000;
+    font-size: 12px;
+}
+
+/* =========================================
+   6. RESPONSIVE (Móviles)
+   ========================================= */
+@media (max-width: 600px) {
+    .public-header {
+        flex-direction: column;
+        gap: 15px;
+        text-align: center;
+    }
+    
+    .public-main h1 {
+        font-size: 24px;
+    }
+}
