@@ -1,308 +1,189 @@
 <?php
 require_once BASE_PATH . '/includes/conexion.php';
+require_once BASE_PATH . '/includes/funciones.php';
 
 $mensaje = '';
 
-/**
- * Procesa la validación y aceptación de un pre-registro o aviso de donador vía GET.
- * 
- * @param mysqli $conn Objeto de conexión a la base de datos.
- * @return string Mensaje HTML con el resultado de la operación.
- */
-function procesarValidacionPreregistro(mysqli $conn): string {
-    if (isset($_GET['validar_preregistro'])) {
-        
-        $id_pre = intval($_GET['validar_preregistro']);
-        
-        $res = $conn->query("SELECT * FROM pre_registros WHERE id = $id_pre AND estado = 'Pendiente'");
-        
-        if ($res && $res->num_rows > 0) {
-            $pre = $res->fetch_assoc();
-            
-            $folio = "REC-" . date("YmdHis") . "-" . rand(100, 999);
-            
-            $id_empleado_recibe = isset($_SESSION['usuario_id']) ? intval($_SESSION['usuario_id']) : 1;
-            
-            $conn->begin_transaction();
-            
-            try {
-                $sql = "INSERT INTO recepciones (folio, id_proveedor, id_materia_prima, cantidad, id_unidad, id_empleado_recibe) 
-                        VALUES (?, NULL, ?, ?, 1, ?)";
-                
-                $stmt = $conn->prepare($sql);
-                
-                if (!$stmt) {
-                    throw new Exception("Error al preparar la consulta.");
-                }
-                
-                $stmt->bind_param("sidi", $folio, $pre['id_materia_prima'], $pre['cantidad_aproximada'], $id_empleado_recibe);
-                
-                if (!$stmt->execute()) {
-                    throw new Exception("Error al ejecutar la inserción.");
-                }
-                
-                $stmt->close();
-                
-                $stmt2 = $conn->prepare("UPDATE pre_registros SET estado = 'Recibido' WHERE id = ?");
-                
-                if (!$stmt2) {
-                    throw new Exception("Error al preparar la actualización.");
-                }
-                
-                $stmt2->bind_param("i", $id_pre);
-                
-                if (!$stmt2->execute()) {
-                    throw new Exception("Error al actualizar el estado.");
-                }
-                
-                $stmt2->close();
-                
-                $conn->commit();
-                
-                return "<div class='alert success'>Recepción oficial generada con folio: $folio</div>";
-                
-            } catch (Exception $e) {
-                $conn->rollback();
-                error_log($e->getMessage());
-                return "<div class='alert error'>Error al generar la recepción.</div>";
-            }
-        }
-    }
+// ========================================
+// GUARDAR NUEVA RECEPCIÓN
+// ========================================
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['guardar'])) {
+    $id_proveedor = intval($_POST['id_proveedor']);
+    $id_materia_prima = intval($_POST['id_materia_prima']);
+    $cantidad = floatval($_POST['cantidad']);
+    $id_unidad = intval($_POST['id_unidad']);
+    $id_empleado_recibe = intval($_POST['id_empleado_recibe']);
     
-    return '';
-}
-
-/**
- * Procesa el rechazo de un pre-registro o aviso de donador vía GET.
- * 
- * @param mysqli $conn Objeto de conexión a la base de datos.
- * @return string Mensaje HTML con el resultado de la operación.
- */
-function procesarRechazoPreregistro(mysqli $conn): string {
-    if (isset($_GET['rechazar_preregistro'])) {
+    if ($id_proveedor > 0 && $id_materia_prima > 0 && $cantidad > 0 && $id_unidad > 0 && $id_empleado_recibe > 0) {
+        // Generar folio automático
+        $folio = generarFolio($conn, 'recepciones', 'folio', 'REC');
         
-        $id_pre = intval($_GET['rechazar_preregistro']);
-        
-        $sql = "UPDATE pre_registros SET estado = 'Rechazado' WHERE id = ? AND estado = 'Pendiente'";
-        $stmt = $conn->prepare($sql);
-        
-        if (!$stmt) {
-            return "<div class='alert error'>Error al rechazar el aviso.</div>";
-        }
-        
-        $stmt->bind_param("i", $id_pre);
-        
-        if ($stmt->execute()) {
-            $stmt->close();
-            return "<div class='alert success'>El aviso del donador ha sido rechazado.</div>";
-        } else {
-            $stmt->close();
-            return "<div class='alert error'>Error al rechazar el aviso.</div>";
-        }
-    }
-    
-    return '';
-}
-
-/**
- * Actualiza el estado de un pre-registro específico.
- * 
- * @param mysqli $conn Objeto de conexión a la base de datos.
- * @param int $id_pre ID del pre-registro.
- * @param string $nuevoEstado Nuevo estado a establecer.
- */
-function actualizarEstadoPreRegistro(mysqli $conn, int $id_pre, string $nuevoEstado): void {
-    $sql = "UPDATE pre_registros SET estado = ? WHERE id = ?";
-    $stmt = $conn->prepare($sql);
-    if ($stmt) {
-        $stmt->bind_param("si", $nuevoEstado, $id_pre);
-        $stmt->execute();
-        $stmt->close();
-    }
-}
-
-/**
- * Procesa el formulario POST para registrar una entrada directa de recepción de proveedores.
- * 
- * @param mysqli $conn Objeto de conexión a la base de datos.
- * @return string Mensaje HTML con el resultado de la operación.
- */
-function procesarRecepcionDirecta(mysqli $conn): string {
-    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['recepcion_directa'])) {
-        
-        $folio = isset($_POST['folio']) ? trim($_POST['folio']) : '';
-        $id_proveedor = isset($_POST['id_proveedor']) ? intval($_POST['id_proveedor']) : 0;
-        $id_materia = isset($_POST['id_materia']) ? intval($_POST['id_materia']) : 0;
-        $cantidad = isset($_POST['cantidad']) ? floatval($_POST['cantidad']) : 0;
-        
-        $id_unidad = 1;
-        $id_empleado = isset($_SESSION['usuario_id']) ? intval($_SESSION['usuario_id']) : 1;
-
-        if (empty($folio) || $id_proveedor <= 0 || $id_materia <= 0 || $cantidad <= 0) {
-            return "<div class='alert error'>Datos inválidos. Revisa los campos.</div>";
-        }
-
         $sql = "INSERT INTO recepciones (folio, id_proveedor, id_materia_prima, cantidad, id_unidad, id_empleado_recibe) 
                 VALUES (?, ?, ?, ?, ?, ?)";
-        
         $stmt = $conn->prepare($sql);
-        
-        if (!$stmt) {
-            return "<div class='alert error'>Error al registrar la recepción.</div>";
-        }
-        
-        $stmt->bind_param("siidii", $folio, $id_proveedor, $id_materia, $cantidad, $id_unidad, $id_empleado);
+        $stmt->bind_param("siidii", $folio, $id_proveedor, $id_materia_prima, $cantidad, $id_unidad, $id_empleado_recibe);
         
         if ($stmt->execute()) {
-            $stmt->close();
-            return "<div class='alert success'>Recepción directa registrada correctamente.</div>";
+            $mensaje = "<div class='alert success'>Recepción registrada correctamente con folio: <strong>$folio</strong></div>";
         } else {
-            $stmt->close();
-            return "<div class='alert error'>Error al registrar la recepción.</div>";
+            $mensaje = "<div class='alert error'>Error al registrar la recepción.</div>";
+        }
+        $stmt->close();
+    } else {
+        $mensaje = "<div class='alert error'>Por favor completa todos los campos obligatorios.</div>";
+    }
+}
+
+// ========================================
+// ELIMINAR RECEPCIÓN
+// ========================================
+if (isset($_GET['eliminar'])) {
+    $id_eliminar = intval($_GET['eliminar']);
+    
+    try {
+        $sql = "DELETE FROM recepciones WHERE id = ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("i", $id_eliminar);
+        $stmt->execute();
+        $stmt->close();
+        
+        header("Location: " . BASE_PATH . "/panel.php?vista=funcionalidades/recepcion");
+        exit();
+    } catch (mysqli_sql_exception $e) {
+        if ($e->getCode() == 1451) {
+            $mensaje = "<div class='alert error'>No se puede eliminar: esta recepción ya tiene registros asociados.</div>";
+        } else {
+            $mensaje = "<div class='alert error'>Error al eliminar.</div>";
         }
     }
-    
-    return '';
 }
 
-/**
- * Obtiene el catálogo completo de proveedores registrados.
- * 
- * @param mysqli $conn Objeto de conexión a la base de datos.
- * @return mysqli_result|null Resultado con los proveedores.
- */
-function obtenerProveedores(mysqli $conn): ?mysqli_result {
-    return $conn->query("SELECT id, nombre_empresa FROM cat_proveedores") ?: null;
-}
+// ========================================
+// LISTAR RECEPCIONES
+// ========================================
+$sql_lista = "SELECT 
+                r.id,
+                r.folio,
+                r.fecha_recepcion,
+                r.cantidad,
+                p.nombre_empresa as proveedor,
+                mp.nombre as materia_prima,
+                u.abreviatura as unidad,
+                e.nombre_completo as empleado
+              FROM recepciones r
+              LEFT JOIN cat_proveedores p ON r.id_proveedor = p.id
+              LEFT JOIN cat_materias_primas mp ON r.id_materia_prima = mp.id
+              LEFT JOIN cat_unidades_medida u ON r.id_unidad = u.id
+              LEFT JOIN cat_empleados e ON r.id_empleado_recibe = e.id
+              ORDER BY r.fecha_recepcion DESC";
+$resultado = $conn->query($sql_lista);
 
-/**
- * Obtiene el catálogo completo de materias primas registradas.
- * 
- * @param mysqli $conn Objeto de conexión a la base de datos.
- * @return mysqli_result|null Resultado con las materias primas.
- */
-function obtenerMateriasPrimas(mysqli $conn): ?mysqli_result {
-    return $conn->query("SELECT id, nombre FROM cat_materias_primas") ?: null;
-}
-
-/**
- * Obtiene el listado de pre-registros que se encuentran con estado 'Pendiente'.
- * 
- * @param mysqli $conn Objeto de conexión a la base de datos.
- * @return mysqli_result|null Resultado con los pre-registros pendientes.
- */
-function obtenerPreRegistrosPendientes(mysqli $conn): ?mysqli_result {
-    return $conn->query("SELECT * FROM pre_registros WHERE estado = 'Pendiente' ORDER BY id DESC") ?: null;
-}
-
-$mensaje_validacion = procesarValidacionPreregistro($conn);
-if (!empty($mensaje_validacion)) {
-    $mensaje = $mensaje_validacion;
-}
-
-$mensaje_rechazo = procesarRechazoPreregistro($conn);
-if (!empty($mensaje_rechazo)) {
-    $mensaje = $mensaje_rechazo;
-}
-
-$mensaje_directa = procesarRecepcionDirecta($conn);
-if (!empty($mensaje_directa)) {
-    $mensaje = $mensaje_directa;
-}
-
-$proveedores = obtenerProveedores($conn);
-$materias = obtenerMateriasPrimas($conn);
-$pre_registros = obtenerPreRegistrosPendientes($conn);
+// Obtener datos para los selects
+$proveedores = $conn->query("SELECT id, nombre_empresa FROM cat_proveedores ORDER BY nombre_empresa");
+$materias_primas = $conn->query("SELECT id, nombre FROM cat_materias_primas ORDER BY nombre");
+$unidades = $conn->query("SELECT id, nombre, abreviatura FROM cat_unidades_medida ORDER BY nombre");
+$empleados = $conn->query("SELECT id, nombre_completo FROM cat_empleados WHERE estado = 'Activo' ORDER BY nombre_completo");
 ?>
 
-<h2>Recepción de Materia Prima</h2>
+<h2>📥 Recepción de Materiales</h2>
+<p>Registra la entrada de materiales a la planta procesadora</p>
 
 <?php echo $mensaje; ?>
 
-<div class="table-container">
-    <h3>Avisos Pendientes de Donadores</h3>
-    
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>Donador</th>
-                <th>Material</th>
-                <th>Cantidad Aprox.</th>
-                <th>Teléfono</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php if ($pre_registros && $pre_registros->num_rows > 0): ?>
-                
-                <?php while($row = $pre_registros->fetch_assoc()): ?>
-                    <tr>
-                        <td><?php echo htmlspecialchars($row['nombre_donador']); ?></td>
-                        
-                        <td>ID: <?php echo $row['id_materia_prima']; ?></td>
-                        
-                        <td><?php echo $row['cantidad_aproximada']; ?> kg</td>
-                        
-                        <td><?php echo htmlspecialchars($row['telefono']); ?></td>
-                        
-                        <td>
-                            <a href="panel.php?vista=funcionalidades/recepcion&validar_preregistro=<?php echo $row['id']; ?>" class="btn-save" style="text-decoration: none; padding: 5px 10px; font-size: 12px;">Recibir</a>
-                            
-                            <a href="panel.php?vista=funcionalidades/recepcion&rechazar_preregistro=<?php echo $row['id']; ?>" class="btn-delete" style="text-decoration: none; padding: 5px 10px; font-size: 12px; border: 1px solid #cc0000; margin-left: 5px;" onclick="return confirm('¿Seguro que deseas rechazar este aviso?');">Rechazar</a>
-                        </td>
-                    </tr>
-                <?php endwhile; ?>
-                
-            <?php else: ?>
-                <tr><td colspan="5" style="text-align: center;">No hay avisos pendientes.</td></tr>
-            <?php endif; ?>
-        </tbody>
-    </table>
-</div>
-
+<!-- Formulario de Registro -->
 <div class="form-container">
-    <h3>Registrar Entrada Directa (Proveedores)</h3>
-    
+    <h3>Nueva Recepción</h3>
     <form method="POST" action="">
         <div class="form-grid">
-            
-            <div>
-                <label>Folio de Recepción:</label>
-                <input type="text" name="folio" placeholder="Ej. REC-001" required>
-            </div>
-            
             <div>
                 <label>Proveedor:</label>
                 <select name="id_proveedor" required>
-                    <option value="">Selecciona...</option>
-                    
-                    <?php if ($proveedores): ?>
-                        <?php while($row = $proveedores->fetch_assoc()): ?>
-                            <option value="<?php echo $row['id']; ?>"><?php echo htmlspecialchars($row['nombre_empresa']); ?></option>
-                        <?php endwhile; ?>
-                    <?php endif; ?>
+                    <option value="">Selecciona un proveedor...</option>
+                    <?php while($p = $proveedores->fetch_assoc()): ?>
+                        <option value="<?php echo $p['id']; ?>"><?php echo htmlspecialchars($p['nombre_empresa']); ?></option>
+                    <?php endwhile; ?>
                 </select>
             </div>
             
             <div>
                 <label>Materia Prima:</label>
-                <select name="id_materia" required>
-                    <option value="">Selecciona...</option>
-                    
-                    <?php if ($materias): ?>
-                        <?php while($row = $materias->fetch_assoc()): ?>
-                            <option value="<?php echo $row['id']; ?>"><?php echo htmlspecialchars($row['nombre']); ?></option>
-                        <?php endwhile; ?>
-                    <?php endif; ?>
+                <select name="id_materia_prima" required>
+                    <option value="">Selecciona un material...</option>
+                    <?php while($mp = $materias_primas->fetch_assoc()): ?>
+                        <option value="<?php echo $mp['id']; ?>"><?php echo htmlspecialchars($mp['nombre']); ?></option>
+                    <?php endwhile; ?>
                 </select>
             </div>
             
             <div>
-                <label>Cantidad (kg):</label>
-                <input type="number" step="0.01" name="cantidad" required>
+                <label>Cantidad:</label>
+                <input type="number" step="0.01" name="cantidad" required min="0.01">
+            </div>
+            
+            <div>
+                <label>Unidad de Medida:</label>
+                <select name="id_unidad" required>
+                    <option value="">Selecciona una unidad...</option>
+                    <?php while($u = $unidades->fetch_assoc()): ?>
+                        <option value="<?php echo $u['id']; ?>"><?php echo htmlspecialchars($u['nombre'] . ' (' . $u['abreviatura'] . ')'); ?></option>
+                    <?php endwhile; ?>
+                </select>
+            </div>
+            
+            <div>
+                <label>Empleado que Recibe:</label>
+                <select name="id_empleado_recibe" required>
+                    <option value="">Selecciona un empleado...</option>
+                    <?php while($e = $empleados->fetch_assoc()): ?>
+                        <option value="<?php echo $e['id']; ?>"><?php echo htmlspecialchars($e['nombre_completo']); ?></option>
+                    <?php endwhile; ?>
+                </select>
             </div>
         </div>
         
-        <button type="submit" name="recepcion_directa" class="btn-save">Registrar Recepción Directa</button>
+        <button type="submit" name="guardar" class="btn-save">Registrar Recepción</button>
     </form>
+</div>
+
+<!-- Tabla de Recepciones -->
+<div class="table-container">
+    <h3>Historial de Recepciones</h3>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Folio</th>
+                <th>Fecha</th>
+                <th>Proveedor</th>
+                <th>Material</th>
+                <th>Cantidad</th>
+                <th>Unidad</th>
+                <th>Recibió</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php if ($resultado && $resultado->num_rows > 0): ?>
+                <?php while($row = $resultado->fetch_assoc()): ?>
+                    <tr>
+                        <td><strong><?php echo htmlspecialchars($row['folio']); ?></strong></td>
+                        <td><?php echo date('d/m/Y H:i', strtotime($row['fecha_recepcion'])); ?></td>
+                        <td><?php echo htmlspecialchars($row['proveedor']); ?></td>
+                        <td><?php echo htmlspecialchars($row['materia_prima']); ?></td>
+                        <td><?php echo number_format($row['cantidad'], 2); ?></td>
+                        <td><?php echo htmlspecialchars($row['unidad']); ?></td>
+                        <td><?php echo htmlspecialchars($row['empleado']); ?></td>
+                        <td>
+                            <a href="panel.php?vista=funcionalidades/recepcion&eliminar=<?php echo $row['id']; ?>" 
+                               class="btn-delete" 
+                               onclick="return confirm('¿Seguro que deseas eliminar esta recepción?');">Eliminar</a>
+                        </td>
+                    </tr>
+                <?php endwhile; ?>
+            <?php else: ?>
+                <tr>
+                    <td colspan="8" style="text-align: center;">No hay recepciones registradas.</td>
+                </tr>
+            <?php endif; ?>
+        </tbody>
+    </table>
 </div>

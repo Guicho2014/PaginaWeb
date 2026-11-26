@@ -1,17 +1,21 @@
 <?php
-$host = "127.0.0.1"; // Dirección del servidor donde está alojada la base de datos
-$usuario = "root"; // Usuario para acceder a MySQL
-$contrasena = "pass"; // Contraseña del usuario de MySQL
-$base_datos = "planta_local"; // Nombre de la base de datos que se utilizará
+$host = "127.0.0.1";
+$usuario = "root";
+$contrasena = "Fernando@2022";  // ← Tu nueva contraseña
+$base_datos = "planta_local";
 
-// Crea la conexión con el servidor MySQL
+// Crea la conexión
 $conn = new mysqli($host, $usuario, $contrasena, $base_datos);
 
-// Verifica si ocurrió un error al conectar
+// Verifica errores
 if ($conn->connect_error) {
-    die("Error de conexión: " . $conn->connect_error); // Detiene el programa y muestra el error
+    die("Error de conexión: " . $conn->connect_error);
 }
 
-// Establece la codificación UTF-8 para mostrar correctamente acentos y caracteres especiales
-$conn->set_charset("utf8");
+// ✅ Mejora: usar utf8mb4 en lugar de utf8 para soporte completo de emojis y caracteres especiales
+$conn->set_charset("utf8mb4");
+
+// ✅ Mejora: desactivar errores en pantalla en producción
+// ini_set('display_errors', 0);
+// ini_set('log_errors', 1);
 ?>

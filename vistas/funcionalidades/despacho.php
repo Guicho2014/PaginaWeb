@@ -1,240 +1,163 @@
 <?php
-// Incluye el archivo de conexión a la base de datos utilizando BASE_PATH.
 require_once BASE_PATH . '/includes/conexion.php';
+require_once BASE_PATH . '/includes/funciones.php';
 
-// Inicializa la variable para almacenar los mensajes de éxito o error.
 $mensaje = '';
 
-/**
- * Procesa el formulario POST para registrar un nuevo despacho de productos.
- * 
- * @param mysqli $conn Objeto de conexión a la base de datos.
- * @return string Mensaje HTML con el resultado de la operación.
- */
-function procesarDespacho(mysqli $conn): string {
-    // Comprueba si la petición es de tipo POST y se envió el botón de despachar.
-    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['despachar'])) {
-        
-        // Obtiene y limpia los espacios del folio de despacho.
-        $folio = trim($_POST['folio_despacho']);
-        
-        // Obtiene y sanitiza el ID de la orden de producción.
-        $id_orden = intval($_POST['id_orden']);
-        
-        // Obtiene y sanitiza el ID del cliente.
-        $id_cliente = intval($_POST['id_cliente']);
-        
-        // Obtiene y sanitiza la cantidad despachada como número decimal.
-        $cantidad = floatval($_POST['cantidad']);
-        
-        // Obtiene y limpia los espacios del nombre del transportista.
-        $transportista = trim($_POST['transportista']);
-
-        // Valida que el folio no esté vacío y que los IDs sean mayores a cero.
-        if (!empty($folio) && $id_orden > 0 && $id_cliente > 0) {
-            
-            // Define la consulta SQL preparada para insertar el despacho.
-            $sql = "INSERT INTO despachos (folio_despacho, id_orden, id_cliente, cantidad_despachada, transportista) VALUES (?, ?, ?, ?, ?)";
-            
-            // Prepara la consulta en la base de datos.
-            $stmt = $conn->prepare($sql);
-            
-            // Vincula los parámetros a la consulta preparada (cadena, 2 enteros, decimal y cadena).
-            $stmt->bind_param("siids", $folio, $id_orden, $id_cliente, $cantidad, $transportista);
-            
-            // Ejecuta la consulta y verifica si fue exitosa.
-            if ($stmt->execute()) {
-                
-                // Actualiza el estado de la orden de producción a 'Terminada'.
-                actualizarEstadoOrdenTerminada($conn, $id_orden);
-                
-                // Cierra la sentencia preparada.
-                $stmt->close();
-                
-                // Retorna el mensaje de éxito.
-                return "<div class='alert success'>Despacho registrado. La orden se ha marcado como Terminada.</div>";
-            } else {
-                // Cierra la sentencia preparada en caso de error.
-                $stmt->close();
-                
-                // Retorna el mensaje de error.
-                return "<div class='alert error'>Error al registrar despacho.</div>";
-            }
-        }
-    }
+// ========================================
+// GUARDAR NUEVO DESPACHO
+// ========================================
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['guardar'])) {
+    $id_orden = intval($_POST['id_orden']);
+    $id_cliente = intval($_POST['id_cliente']);
+    $cantidad_despachada = floatval($_POST['cantidad_despachada']);
+    $transportista = trim($_POST['transportista']);
     
-    // Retorna una cadena vacía si no se envió el formulario o faltan datos.
-    return '';
+    if ($id_orden > 0 && $id_cliente > 0 && $cantidad_despachada > 0) {
+        $folio_despacho = generarFolio($conn, 'despachos', 'folio_despacho', 'DES');
+        
+        $sql = "INSERT INTO despachos (folio_despacho, id_orden, id_cliente, cantidad_despachada, transportista) 
+                VALUES (?, ?, ?, ?, ?)";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("siids", $folio_despacho, $id_orden, $id_cliente, $cantidad_despachada, $transportista);
+        
+        if ($stmt->execute()) {
+            $mensaje = "<div class='alert success'>Despacho registrado correctamente con folio: <strong>$folio_despacho</strong></div>";
+        } else {
+            $mensaje = "<div class='alert error'>Error al registrar el despacho.</div>";
+        }
+        $stmt->close();
+    } else {
+        $mensaje = "<div class='alert error'>Por favor completa todos los campos obligatorios.</div>";
+    }
 }
 
-/**
- * Actualiza el estado de una orden de producción a 'Terminada'.
- * 
- * @param mysqli $conn Objeto de conexión a la base de datos.
- * @param int $id_orden ID de la orden de producción.
- */
-function actualizarEstadoOrdenTerminada(mysqli $conn, int $id_orden): void {
-    // Ejecuta directamente la actualización del estado de la orden.
-    $conn->query("UPDATE produccion_ordenes SET estado = 'Terminada' WHERE id = $id_orden");
+// ========================================
+// ELIMINAR DESPACHO
+// ========================================
+if (isset($_GET['eliminar'])) {
+    $id_eliminar = intval($_GET['eliminar']);
+    
+    try {
+        $sql = "DELETE FROM despachos WHERE id = ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("i", $id_eliminar);
+        $stmt->execute();
+        $stmt->close();
+        
+        header("Location: " . BASE_PATH . "/panel.php?vista=funcionalidades/despacho");
+        exit();
+    } catch (mysqli_sql_exception $e) {
+        $mensaje = "<div class='alert error'>Error al eliminar.</div>";
+    }
 }
 
-/**
- * Obtiene las órdenes de producción que no están canceladas.
- * 
- * @param mysqli $conn Objeto de conexión a la base de datos.
- * @return mysqli_result Resultado con las órdenes disponibles.
- */
-function obtenerOrdenesDisponibles(mysqli $conn): mysqli_result {
-    return $conn->query("SELECT id, folio_orden FROM produccion_ordenes WHERE estado != 'Cancelada'");
-}
+// ========================================
+// LISTAR DESPACHOS
+// ========================================
+$sql_lista = "SELECT 
+                d.id,
+                d.folio_despacho,
+                d.fecha_salida,
+                d.cantidad_despachada,
+                d.transportista,
+                po.folio_orden,
+                p.nombre as producto,
+                u.abreviatura as unidad,
+                c.nombre_empresa as cliente
+              FROM despachos d
+              LEFT JOIN produccion_ordenes po ON d.id_orden = po.id
+              LEFT JOIN cat_productos p ON po.id_producto = p.id
+              LEFT JOIN cat_unidades_medida u ON p.id_unidad = u.id
+              LEFT JOIN cat_clientes c ON d.id_cliente = c.id
+              ORDER BY d.fecha_salida DESC";
+$resultado = $conn->query($sql_lista);
 
-/**
- * Obtiene el catálogo completo de clientes registrados.
- * 
- * @param mysqli $conn Objeto de conexión a la base de datos.
- * @return mysqli_result Resultado con los clientes.
- */
-function obtenerClientes(mysqli $conn): mysqli_result {
-    return $conn->query("SELECT id, nombre_empresa FROM cat_clientes");
-}
-
-/**
- * Obtiene el historial completo de despachos con sus relaciones mediante LEFT JOIN.
- * 
- * @param mysqli $conn Objeto de conexión a la base de datos.
- * @return mysqli_result Resultado con el historial de despachos.
- */
-function obtenerHistorialDespachos(mysqli $conn): mysqli_result {
-    $sql = "SELECT d.id, d.folio_despacho, o.folio_orden, c.nombre_empresa as cliente, d.cantidad_despachada, d.transportista, d.fecha_salida 
-                           FROM despachos d 
-                           LEFT JOIN produccion_ordenes o ON d.id_orden = o.id 
-                           LEFT JOIN cat_clientes c ON d.id_cliente = c.id 
-                           ORDER BY d.id DESC";
-    return $conn->query($sql);
-}
-
-// Ejecuta la función de procesamiento de despacho y guarda el resultado.
-$mensaje = procesarDespacho($conn);
-
-// Obtiene las órdenes disponibles para llenar el selector.
-$ordenes = obtenerOrdenesDisponibles($conn);
-
-// Obtiene los clientes para llenar el selector.
-$clientes = obtenerClientes($conn);
-
-// Obtiene el historial de despachos para mostrar en la tabla.
-$despachos = obtenerHistorialDespachos($conn);
+$ordenes = $conn->query("SELECT id, folio_orden FROM produccion_ordenes WHERE estado IN ('En Proceso', 'Completada') ORDER BY folio_orden DESC");
+$clientes = $conn->query("SELECT id, nombre_empresa FROM cat_clientes ORDER BY nombre_empresa");
 ?>
 
-<!-- Título de la sección de despacho de productos -->
 <h2>Despacho de Productos</h2>
+<p>Registra la salida de productos terminados hacia los clientes</p>
 
-<!-- Imprime el mensaje de éxito o error generado -->
 <?php echo $mensaje; ?>
 
-<!-- Contenedor principal del formulario de registro de salida -->
 <div class="form-container">
-    <h3>Registrar Salida</h3>
-    
-    <!-- Formulario para enviar los datos por método POST -->
+    <h3>Nuevo Despacho</h3>
     <form method="POST" action="">
         <div class="form-grid">
-            
-            <!-- Campo de texto para el Folio de Despacho -->
-            <div>
-                <label>Folio de Despacho:</label>
-                <input type="text" name="folio_despacho" placeholder="Ej. DES-001" required>
-            </div>
-            
-            <!-- Campo de selección para la Orden de Producción -->
             <div>
                 <label>Orden de Producción:</label>
                 <select name="id_orden" required>
-                    <option value="">Selecciona...</option>
-                    
-                    <!-- Recorre las órdenes disponibles -->
-                    <?php while($row = $ordenes->fetch_assoc()): ?>
-                        <option value="<?php echo $row['id']; ?>"><?php echo $row['folio_orden']; ?></option>
+                    <option value="">Selecciona una orden...</option>
+                    <?php while($o = $ordenes->fetch_assoc()): ?>
+                        <option value="<?php echo $o['id']; ?>"><?php echo htmlspecialchars($o['folio_orden']); ?></option>
                     <?php endwhile; ?>
                 </select>
             </div>
             
-            <!-- Campo de selección para el Cliente -->
             <div>
                 <label>Cliente:</label>
                 <select name="id_cliente" required>
-                    <option value="">Selecciona...</option>
-                    
-                    <!-- Recorre los clientes registrados -->
-                    <?php while($row = $clientes->fetch_assoc()): ?>
-                        <option value="<?php echo $row['id']; ?>"><?php echo $row['nombre_empresa']; ?></option>
+                    <option value="">Selecciona un cliente...</option>
+                    <?php while($c = $clientes->fetch_assoc()): ?>
+                        <option value="<?php echo $c['id']; ?>"><?php echo htmlspecialchars($c['nombre_empresa']); ?></option>
                     <?php endwhile; ?>
                 </select>
             </div>
             
-            <!-- Campo numérico para la Cantidad Despachada -->
             <div>
                 <label>Cantidad Despachada:</label>
-                <input type="number" step="0.01" name="cantidad" required>
+                <input type="number" step="0.01" name="cantidad_despachada" required min="0.01">
             </div>
             
-            <!-- Campo de texto para el Transportista -->
             <div>
                 <label>Transportista:</label>
-                <input type="text" name="transportista">
+                <input type="text" name="transportista" placeholder="Nombre del transportista o empresa">
             </div>
         </div>
         
-        <!-- Botón para enviar el formulario de despacho -->
-        <button type="submit" name="despachar" class="btn-save">Registrar Despacho</button>
+        <button type="submit" name="guardar" class="btn-save">Registrar Despacho</button>
     </form>
 </div>
 
-<!-- Contenedor de la tabla que muestra el historial de despachos -->
 <div class="table-container">
     <h3>Historial de Despachos</h3>
-    
     <table class="data-table">
         <thead>
             <tr>
                 <th>Folio</th>
-                <th>Orden</th>
-                <th>Cliente</th>
-                <th>Cantidad</th>
-                <th>Transportista</th>
                 <th>Fecha</th>
+                <th>Orden</th>
+                <th>Producto</th>
+                <th>Cantidad</th>
+                <th>Cliente</th>
+                <th>Transportista</th>
+                <th>Acciones</th>
             </tr>
         </thead>
         <tbody>
-            <!-- Comprueba si existen registros en el historial de despachos -->
-            <?php if ($despachos && $despachos->num_rows > 0): ?>
-                
-                <!-- Recorre cada registro de despacho obtenido -->
-                <?php while($row = $despachos->fetch_assoc()): ?>
+            <?php if ($resultado && $resultado->num_rows > 0): ?>
+                <?php while($row = $resultado->fetch_assoc()): ?>
                     <tr>
-                        <!-- Muestra el folio de despacho protegido contra XSS -->
-                        <td><?php echo htmlspecialchars($row['folio_despacho']); ?></td>
-                        
-                        <!-- Muestra el folio de la orden protegido contra XSS -->
+                        <td><strong><?php echo htmlspecialchars($row['folio_despacho']); ?></strong></td>
+                        <td><?php echo date('d/m/Y H:i', strtotime($row['fecha_salida'])); ?></td>
                         <td><?php echo htmlspecialchars($row['folio_orden']); ?></td>
-                        
-                        <!-- Muestra el nombre del cliente protegido contra XSS -->
+                        <td><?php echo htmlspecialchars($row['producto']); ?></td>
+                        <td><?php echo number_format($row['cantidad_despachada'], 2); ?> <?php echo htmlspecialchars($row['unidad']); ?></td>
                         <td><?php echo htmlspecialchars($row['cliente']); ?></td>
-                        
-                        <!-- Muestra la cantidad despachada -->
-                        <td><?php echo $row['cantidad_despachada']; ?></td>
-                        
-                        <!-- Muestra el transportista protegido contra XSS -->
-                        <td><?php echo htmlspecialchars($row['transportista']); ?></td>
-                        
-                        <!-- Muestra la fecha de salida -->
-                        <td><?php echo $row['fecha_salida']; ?></td>
+                        <td><?php echo htmlspecialchars($row['transportista'] ?? '-'); ?></td>
+                        <td>
+                            <a href="panel.php?vista=funcionalidades/despacho&eliminar=<?php echo $row['id']; ?>" 
+                               class="btn-delete" 
+                               onclick="return confirm('¿Seguro que deseas eliminar este despacho?');">Eliminar</a>
+                        </td>
                     </tr>
                 <?php endwhile; ?>
-                
             <?php else: ?>
-                <!-- Muestra una fila alternativa si la tabla está vacía -->
-                <tr><td colspan="6" style="text-align: center;">No hay despachos registrados.</td></tr>
+                <tr>
+                    <td colspan="8" style="text-align: center;">No hay despachos registrados.</td>
+                </tr>
             <?php endif; ?>
         </tbody>
     </table>
