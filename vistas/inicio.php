@@ -38,7 +38,7 @@ $ultimos_pre_registros = $conn->query("
 
 <!-- Catálogos -->
 <div class="form-container">
-    <h3>📦 Catálogos</h3>
+    <h3>Catálogos</h3>
     <table class="data-table">
         <thead>
             <tr>
@@ -47,33 +47,18 @@ $ultimos_pre_registros = $conn->query("
             </tr>
         </thead>
         <tbody>
-            <tr>
-                <td>Materias Primas</td>
-                <td><?php echo $total_materias_primas; ?></td>
-            </tr>
-            <tr>
-                <td>Productos</td>
-                <td><?php echo $total_productos; ?></td>
-            </tr>
-            <tr>
-                <td>Empleados Activos</td>
-                <td><?php echo $total_empleados; ?></td>
-            </tr>
-            <tr>
-                <td>Proveedores</td>
-                <td><?php echo $total_proveedores; ?></td>
-            </tr>
-            <tr>
-                <td>Clientes</td>
-                <td><?php echo $total_clientes; ?></td>
-            </tr>
+            <tr><td>Materias Primas</td><td><?php echo $total_materias_primas; ?></td></tr>
+            <tr><td>Productos</td><td><?php echo $total_productos; ?></td></tr>
+            <tr><td>Empleados Activos</td><td><?php echo $total_empleados; ?></td></tr>
+            <tr><td>Proveedores</td><td><?php echo $total_proveedores; ?></td></tr>
+            <tr><td>Clientes</td><td><?php echo $total_clientes; ?></td></tr>
         </tbody>
     </table>
 </div>
 
 <!-- Maquinaria -->
 <div class="form-container">
-    <h3>🏭 Estado de Maquinaria</h3>
+    <h3>Estado de Maquinaria</h3>
     <table class="data-table">
         <thead>
             <tr>
@@ -82,25 +67,16 @@ $ultimos_pre_registros = $conn->query("
             </tr>
         </thead>
         <tbody>
-            <tr>
-                <td>Operativas</td>
-                <td><?php echo $maquinaria_stats['operativas'] ?? 0; ?></td>
-            </tr>
-            <tr>
-                <td>En Mantenimiento</td>
-                <td><?php echo $maquinaria_stats['en_mantenimiento'] ?? 0; ?></td>
-            </tr>
-            <tr>
-                <td>Total</td>
-                <td><?php echo $maquinaria_stats['total'] ?? 0; ?></td>
-            </tr>
+            <tr><td>Operativas</td><td><?php echo $maquinaria_stats['operativas'] ?? 0; ?></td></tr>
+            <tr><td>En Mantenimiento</td><td><?php echo $maquinaria_stats['en_mantenimiento'] ?? 0; ?></td></tr>
+            <tr><td>Total</td><td><?php echo $maquinaria_stats['total'] ?? 0; ?></td></tr>
         </tbody>
     </table>
 </div>
 
 <!-- Procesos -->
 <div class="form-container">
-    <h3>⚙️ Procesos y Operaciones</h3>
+    <h3>Procesos y Operaciones</h3>
     <table class="data-table">
         <thead>
             <tr>
@@ -109,29 +85,17 @@ $ultimos_pre_registros = $conn->query("
             </tr>
         </thead>
         <tbody>
-            <tr>
-                <td>Pre-Registros de Donadores</td>
-                <td><?php echo $total_pre_registros; ?></td>
-            </tr>
-            <tr>
-                <td>Recepciones de Material</td>
-                <td><?php echo $total_recepciones; ?></td>
-            </tr>
-            <tr>
-                <td>Órdenes de Producción</td>
-                <td><?php echo $total_ordenes; ?></td>
-            </tr>
-            <tr>
-                <td>Despachos Realizados</td>
-                <td><?php echo $total_despachos; ?></td>
-            </tr>
+            <tr><td>Pre-Registros de Donadores</td><td><?php echo $total_pre_registros; ?></td></tr>
+            <tr><td>Recepciones de Material</td><td><?php echo $total_recepciones; ?></td></tr>
+            <tr><td>Ordenes de Produccion</td><td><?php echo $total_ordenes; ?></td></tr>
+            <tr><td>Despachos Realizados</td><td><?php echo $total_despachos; ?></td></tr>
         </tbody>
     </table>
 </div>
 
 <!-- Últimos Pre-Registros -->
 <div class="form-container">
-    <h3>🕐 Últimos Pre-Registros</h3>
+    <h3>Ultimos Pre-Registros</h3>
     <?php if ($ultimos_pre_registros && $ultimos_pre_registros->num_rows > 0): ?>
         <table class="data-table">
             <thead>
@@ -160,10 +124,10 @@ $ultimos_pre_registros = $conn->query("
 
 <!-- Acciones Rápidas -->
 <div class="form-container">
-    <h3>🚀 Acciones Rápidas</h3>
+    <h3>Acciones Rapidas</h3>
     <p>
-        <a href="?vista=funcionalidades/recepcion" class="btn-save" style="margin-right: 10px;">Nueva Recepción</a>
-        <a href="?vista=funcionalidades/programacion" class="btn-save" style="margin-right: 10px;">Programar Producción</a>
+        <a href="?vista=funcionalidades/recepcion" class="btn-save" style="margin-right: 10px;">Nueva Recepcion</a>
+        <a href="?vista=funcionalidades/programacion" class="btn-save" style="margin-right: 10px;">Programar Produccion</a>
         <a href="?vista=funcionalidades/despacho" class="btn-save">Registrar Despacho</a>
     </p>
 </div>

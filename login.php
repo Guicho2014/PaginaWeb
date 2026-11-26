@@ -14,7 +14,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $usuario = trim($_POST['usuario']);
     $password = trim($_POST['password']);
     
-    // Validación básica
     if (empty($usuario) || empty($password)) {
         $error = "Por favor completa todos los campos.";
     } else {
@@ -31,9 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 
                 // VALIDACIÓN SEGURA CON password_verify
                 if (password_verify($password, $fila['password'])) {
-                    // Regenerar ID de sesión por seguridad
                     session_regenerate_id(true);
-                    
                     $_SESSION['usuario_id'] = $fila['id'];
                     $_SESSION['usuario_nombre'] = $fila['usuario'];
                     $_SESSION['usuario_rol'] = $fila['rol'];
@@ -44,7 +41,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $error = "Credenciales inválidas.";
                 }
             } else {
-                // Mensaje genérico para no revelar si el usuario existe o no
                 $error = "Credenciales inválidas.";
             }
             $stmt->close();
@@ -84,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <button type="submit" class="btn-submit">Entrar</button>
         </form>
         
-        <a href="index.php" class="link-back">← Volver al inicio</a>
+        <a href="index.php" class="link-back">Volver al inicio</a>
     </div>
 </body>
 </html>
